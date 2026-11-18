@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TravestCapital | Executive Control Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  :root {
+    --bg: #f1f5f9;
+    --sidebar: #09152b;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --primary: #1d4ed8;
+    --gold: #d97706;
+    --emerald: #059669;
+    --danger: #dc2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .tc-logo { display: inline-flex; align-items: center; gap: 10px; }
+  .tc-monogram {
+    width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, #0b2545, #2563eb);
+    display: grid; place-items: center; border: 1.5px solid #fbbf24;
+  }
+  .tc-monogram span {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 17px;
+    background: linear-gradient(135deg, #fff, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  /* =========================================
+     SILENT 6-DIGIT PIN LOGIN GATE
+  ========================================= */
+  #adminPinGate {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at top, #0f254a 0%, #050a14 100%); padding: 20px;
+  }
+  .pin-card {
+    background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 26px;
+    padding: 36px 28px; width: 100%; max-width: 370px; text-align: center; color: #fff;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+  }
+  .pin-dots { display: flex; justify-content: center; gap: 12px; margin: 22px 0; }
+  .pin-dot {
+    width: 14px; height: 14px; border-radius: 50%; border: 2px solid #475569; transition: 0.2s;
+  }
+  .pin-dot.filled { background: #fbbf24; border-color: #fbbf24; box-shadow: 0 0 12px rgba(251,191,36,0.7); }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 260px; margin: 0 auto; }
+  .key-btn {
+    padding: 15px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06); color: #fff; font-size: 18px; font-weight: 700;
+    cursor: pointer; transition: 0.15s;
+  }
+  .key-btn:hover { background: rgba(37, 99, 235, 0.4); }
+  .key-btn:active { transform: scale(0.95); }
+
+  /* =========================================
+     ADMIN SIDEBAR & MAIN WORKSPACE
+  ========================================= */
+  #adminWorkspace { display: none; min-height: 100vh; }
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; width: 250px; background: var(--sidebar);
+    color: #fff; padding: 22px 14px; display: flex; flex-direction: column; z-index: 100;
+    transition: transform 0.25s ease;
+  }
+  .side-nav { display: flex; flex-direction: column; gap: 6px; margin-top: 26px; flex: 1; }
+  .side-btn {
+    display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-radius: 12px;
+    border: none; background: transparent; color: #94a3b8; font-size: 13.5px; font-weight: 700;
+    cursor: pointer; text-align: left; transition: 0.2s;
+  }
+  .side-btn:hover, .side-btn.active { background: rgba(37, 99, 235, 0.22); color: #fff; }
+  .side-btn.active { border-left: 3px solid #fbbf24; }
+
+  .main-area { margin-left: 250px; padding: 24px; }
+  .mobile-bar { display: none; background: var(--sidebar); color: #fff; padding: 14px 18px; justify-content: space-between; align-items: center; }
+
+  @media (max-width: 900px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .main-area { margin-left: 0; padding: 16px; }
+    .mobile-bar { display: flex; }
+  }
+
+  .panel-section { display: none; }
+  .panel-section.active { display: block; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* KPI Cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 22px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    padding: 20px; box-shadow: 0 4px 16px rgba(15,23,42,0.04);
+  }
+  .kpi-card small { color: var(--muted); font-weight: 700; font-size: 12px; }
+  .kpi-card h2 { font-family: 'Space Grotesk', sans-serif; font-size: 26px; margin-top: 6px; color: var(--text); }
+
+  /* Tap-to-Open Accordion Drawers */
+  .tap-trigger {
+    width: 100%; padding: 14px 18px; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--surface); font-weight: 800; font-size: 14px; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  }
+  .tap-trigger:hover { border-color: var(--primary); }
+  .drawer-body {
+    display: none; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 18px; margin-bottom: 16px;
+  }
+  .drawer-body.open { display: block; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px; margin-bottom: 18px; }
+  .form-input {
+    width: 100%; padding: 11px 14px; border-radius: 11px; border: 1px solid var(--border);
+    background: var(--surface-2); font-size: 13.5px; margin-bottom: 11px; outline: none;
+  }
+  .form-input:focus { border-color: var(--primary); }
+  .btn {
+    padding: 10px 16px; border-radius: 11px; border: none; font-weight: 700; font-size: 13px;
+    cursor: pointer; transition: 0.15s;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-gold { background: var(--gold); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-emerald { background: var(--emerald); color: #fff; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); font-weight: 800; color: var(--muted); font-size: 11.5px; text-transform: uppercase; }
+
+  /* Split Live Chat Console */
+  .chat-console { display: grid; grid-template-columns: 270px 1fr; gap: 16px; height: 480px; }
+  @media (max-width: 760px) { .chat-console { grid-template-columns: 1fr; height: auto; } }
+  .thread-list { border: 1px solid var(--border); border-radius: 16px; overflow-y: auto; background: var(--surface); }
+  .thread-item {
+    padding: 14px; border-bottom: 1px solid var(--border); cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .thread-item:hover, .thread-item.active { background: #eff6ff; }
+  .chat-window {
+    border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+    display: flex; flex-direction: column; overflow: hidden; height: 480px;
+  }
+  .chat-feed { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: var(--surface-2); }
+  .bubble { max-width: 75%; padding: 10px 14px; border-radius: 14px; font-size: 13px; }
+  .bubble.user { align-self: flex-start; background: #fff; border: 1px solid var(--border); }
+  .bubble.admin { align-self: flex-end; background: var(--primary); color: #fff; }
+
+  #adminToast {
+    position: fixed; top: 18px; right: 18px; background: #0f172a; color: #fff;
+    padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 700;
+    z-index: 9999; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+  }
+</style>
+</head>
+<body>
+
+<div id="adminToast">Action Saved</div>
+
+<!-- ==========================================
+     SILENT 6-DIGIT PIN LOGIN SCREEN
+========================================== -->
+<section id="adminPinGate">
+  <div class="pin-card">
+    <div class="tc-monogram" style="margin:0 auto 14px; width:52px; height:52px;"><span style="font-size:22px;">TC</span></div>
+    <h2 style="font-family:'Space Grotesk',sans-serif; font-size:21px;">Executive Terminal</h2>
+    <p style="font-size:12px; color:#94a3b8; margin-top:4px;">Enter 6-Digit Authorization Code</p>
+
+    <div class="pin-dots" id="pinDots">
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+
+    <div class="keypad">
+      <button class="key-btn" onclick="pressPin('1')">1</button>
+      <button class="key-btn" onclick="pressPin('2')">2</button>
+      <button class="key-btn" onclick="pressPin('3')">3</button>
+      <button class="key-btn" onclick="pressPin('4')">4</button>
+      <button class="key-btn" onclick="pressPin('5')">5</button>
+      <button class="key-btn" onclick="pressPin('6')">6</button>
+      <button class="key-btn" onclick="pressPin('7')">7</button>
+      <button class="key-btn" onclick="pressPin('8')">8</button>
+      <button class="key-btn" onclick="pressPin('9')">9</button>
+      <button class="key-btn" style="font-size:13px; color:#f87171;" onclick="clearPin()">CLR</button>
+      <button class="key-btn" onclick="pressPin('0')">0</button>
+      <button class="key-btn" style="font-size:13px; color:#fbbf24;" onclick="backspacePin()">⌫</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================
+     ADMIN DASHBOARD WORKSPACE
+========================================== -->
+<div id="adminWorkspace">
+  <div class="mobile-bar">
+    <div class="tc-logo"><div class="tc-monogram"><span>TC</span></div><strong>Admin Control</strong></div>
+    <button class="btn btn-primary" onclick="document.getElementById('adminSidebar').classList.toggle('open')">☰ Menu</button>
+  </div>
+
+  <aside class="sidebar" id="adminSidebar">
+    <div class="tc-logo">
+      <div class="tc-monogram"><span>TC</span></div>
+      <div style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px;">Travest<span style="color:#fbbf24;">Admin</span></div>
+    </div>
+
+    <nav class="side-nav">
+      <button class="side-btn active" onclick="switchPanel('overview', this)">📊 Revenue & Overview</button>
+      <button class="side-btn" onclick="switchPanel('users', this)">👥 Investors & Wallets</button>
+      <button class="side-btn" onclick="switchPanel('vip', this)">💎 VIP Share Tiers</button>
+      <button class="side-btn" onclick="switchPanel('spin', this)">🎡 Spin Wheel & Devices</button>
+      <button class="side-btn" onclick="switchPanel('orders', this)">📦 Deliveries & Payouts</button>
+      <button class="side-btn" onclick="switchPanel('chat', this)">💬 Live Support Chat</button>
+      <button class="side-btn" onclick="switchPanel('settings', this)">⚙️ News, Paystack & PIN</button>
+    </nav>
+
+    <button class="btn btn-danger" style="width:100%;" onclick="adminLogout()">Lock Terminal</button>
+  </aside>
+
+  <main class="main-area">
+    <!-- 1. OVERVIEW PANEL -->
+    <section id="panel-overview" class="panel-section active">
+      <h2 style="margin-bottom:16px; font-weight:800;">Financial & Platform Overview</h2>
+      <div class="kpi-grid">
+        <div class="kpi-card"><small>Amount Paid Today</small><h2 id="kpiTodayRev" style="color:var(--emerald);">GHS 0.00</h2></div>
+        <div class="kpi-card"><small>Total Cumulative Deposits & Sales</small><h2 id="kpiTotalRev" style="color:var(--primary);">GHS 0.00</h2></div>
+        <div class="kpi-card"><small>Registered Investors</small><h2 id="kpiUsers">0</h2></div>
+        <div class="kpi-card"><small>Pending Device Deliveries</small><h2 id="kpiDeliveries" style="color:var(--gold);">0</h2></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:10px; font-size:16px;">Render Free-Tier Uptime Monitor Endpoint</h3>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">Configure UptimeRobot or Cron-job.org to send an automated HTTP GET ping every 5 minutes to prevent Render sleep:</p>
+        <code style="display:block; background:var(--surface-2); padding:10px 14px; border-radius:10px; font-weight:700;" id="healthUrlDisplay">/health</code>
+      </div>
+    </section>
+
+    <!-- 2. USERS MANAGEMENT PANEL -->
+    <section id="panel-users" class="panel-section">
+      <h2 style="margin-bottom:16px; font-weight:800;">Registered Investors Control</h2>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('adjustWalletDrawer')">
+        <span>➕ Tap to Adjust User Product / Earnings Wallet</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="adjustWalletDrawer">
+        <select class="form-input" id="adjUserId"></select>
+        <select class="form-input" id="adjWalletType">
+          <option value="product">Product Wallet (GHS)</option>
+          <option value="earnings">Earnings Wallet (GHS)</option>
+        </select>
+        <input type="number" class="form-input" id="adjWalletAmount" placeholder="New exact balance in GHS">
+        <button class="btn btn-primary" onclick="submitWalletAdjustment()">Apply Balance Update</button>
+      </div>
+
+      <div class="card table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Investor</th>
+              <th>Phone</th>
+              <th>VIP Level</th>
+              <th>Total Paid</th>
+              <th>Product / Earnings</th>
+              <th>Status</th>
+              <th>Control</th>
+            </tr>
+          </thead>
+          <tbody id="adminUsersTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3. VIP TIERS PANEL -->
+    <section id="panel-vip" class="panel-section">
+      <h2 style="margin-bottom:16px; font-weight:800;">VIP Share Tiers Management</h2>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('addVipDrawer')">
+        <span>➕ Tap to Add New VIP Share Package</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="addVipDrawer">
+        <input type="text" class="form-input" id="newVipName" placeholder="Tier Name (e.g. VIP4)">
+        <input type="number" class="form-input" id="newVipPrice" placeholder="Share Price in GHS (e.g. 3000)">
+        <input type="number" class="form-input" id="newVipDaily" placeholder="Daily Profit in GHS (e.g. 650)">
+        <input type="number" class="form-input" id="newVipDays" value="15" placeholder="Duration Days (Default 15)">
+        <label style="font-size:13px; display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+          <input type="checkbox" id="newVipIsVip2"> Counts as VIP2 Tier (Unlocks Free Spin & Get Hired)
+        </label>
+        <button class="btn btn-primary" onclick="addVipPlan()">Create VIP Tier</button>
+      </div>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('editVipDrawer')">
+        <span>✏️ Tap to Edit Existing VIP Price / Daily Profit</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="editVipDrawer">
+        <select class="form-input" id="editVipSelect"></select>
+        <input type="number" class="form-input" id="editVipPrice" placeholder="New Share Price (GHS)">
+        <input type="number" class="form-input" id="editVipDaily" placeholder="New Daily Profit (GHS)">
+        <button class="btn btn-gold" onclick="updateVipPlan()">Save VIP Changes</button>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <button class="btn btn-danger" onclick="resetVipDefaults()">Reset VIP Tiers to Default (VIP1, VIP2, VIP3)</button>
+      </div>
+
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Tier</th><th>Price</th><th>Daily Profit</th><th>Cycle</th><th>Action</th></tr></thead>
+          <tbody id="adminVipTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4. SPIN WHEEL & DEVICES PANEL -->
+    <section id="panel-spin" class="panel-section">
+      <h2 style="margin-bottom:16px; font-weight:800;">Spin Wheel & Device Inventory</h2>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('spinDifficultyDrawer')">
+        <span>🎯 Tap to Control Free-Spin Win Probability (Hard vs Random)</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="spinDifficultyDrawer">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:10px;">Set whether free VIP2 device spins result mostly in LOST (Hard) or fair 50/50 (Random):</p>
+        <select class="form-input" id="spinDifficultySelect">
+          <option value="random">Random (Balanced Win/Loss)</option>
+          <option value="hard">Hard Mode (Users almost always get LOST)</option>
+        </select>
+        <button class="btn btn-primary" onclick="saveSpinDifficulty()">Apply Difficulty Setting</button>
+      </div>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('uploadDeviceDrawer')">
+        <span>📱 Tap to Upload New Spin Device (With Photo)</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="uploadDeviceDrawer">
+        <form onsubmit="uploadSpinDevice(event)">
+          <input type="text" class="form-input" id="devName" placeholder="Device Name (e.g. iPhone XR)" required>
+          <input type="text" class="form-input" id="devSpecs" placeholder="Specifications (e.g. 128GB Storage, 4GB RAM)" required>
+          <select class="form-input" id="devType" onchange="toggleSaleFields()">
+            <option value="free">Free Spin Device (VIP2 Members Only)</option>
+            <option value="sale">Discounted Sale Spin Device (All Active Users)</option>
+          </select>
+          <div id="saleDeviceFields" style="display:none;">
+            <input type="number" class="form-input" id="devRetailPrice" placeholder="Original Retail Price (GHS)">
+            <input type="text" class="form-input" id="devDiscountSlices" value="500,800,1200,1500,1800,2200" placeholder="6 Wheel Discount Amounts (comma-separated)">
+          </div>
+          <label style="font-size:12px; font-weight:700; display:block; margin-bottom:6px;">Upload Device Picture:</label>
+          <input type="file" class="form-input" id="devImageFile" accept="image/*" required>
+          <button type="submit" class="btn btn-gold">Upload & Publish Device</button>
+        </form>
+      </div>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('editSaleWheelDrawer')">
+        <span>💲 Tap to Update Discounted Sale Wheel Prices</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="editSaleWheelDrawer">
+        <select class="form-input" id="editSaleDevSelect"></select>
+        <input type="number" class="form-input" id="editSaleRetail" placeholder="Updated Retail Price (GHS)">
+        <input type="text" class="form-input" id="editSaleOptions" placeholder="6 Wheel Values (e.g. 400,750,1100,1400,1750,2000)">
+        <button class="btn btn-primary" onclick="updateSaleDevicePricing()">Update Wheel Amounts</button>
+      </div>
+
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Photo</th><th>Device & Specs</th><th>Mode</th><th>Pricing / Wheel Values</th><th>Remove</th></tr></thead>
+          <tbody id="adminDevicesTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. DELIVERIES & PAYOUTS PANEL -->
+    <section id="panel-orders" class="panel-section">
+      <h2 style="margin-bottom:16px; font-weight:800;">Spin Device Deliveries & Withdrawal Requests</h2>
+
+      <div class="card table-wrap">
+        <h3 style="margin-bottom:12px; font-size:15px;">Won / Discounted Device Dispatch Queue</h3>
+        <table>
+          <thead><tr><th>Winner</th><th>Device</th><th>Type / Paid</th><th>Phone</th><th>Region & Address</th><th>Status</th></tr></thead>
+          <tbody id="adminDeliveriesTable"></tbody>
+        </table>
+      </div>
+
+      <div class="card table-wrap">
+        <h3 style="margin-bottom:12px; font-size:15px;">User Withdrawal Requests</h3>
+        <table>
+          <thead><tr><th>Investor</th><th>Amount</th><th>Destination</th><th>Date</th><th>Status</th></tr></thead>
+          <tbody id="adminWithdrawalsTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. LIVE SUPPORT CHAT PANEL -->
+    <section id="panel-chat" class="panel-section">
+      <h2 style="margin-bottom:16px; font-weight:800;">Real-Time Investor Support Desk</h2>
+      <div class="chat-console">
+        <div class="thread-list" id="adminThreadList"></div>
+        <div class="chat-window">
+          <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-weight:800;" id="activeChatHeader">Select an investor conversation</div>
+          <div class="chat-feed" id="adminChatFeed"></div>
+          <form style="display:flex; padding:10px; gap:8px; border-top:1px solid var(--border);" onsubmit="sendAdminReply(event)">
+            <input type="text" class="form-input" id="adminReplyInput" placeholder="Type instant reply..." style="margin:0;" required>
+            <button type="submit" class="btn btn-primary">Send Reply</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. SYSTEM SETTINGS PANEL -->
+    <section id="panel-settings" class="panel-section">
+      <h2 style="margin-bottom:16px; font-weight:800;">Platform Rules, Paystack Keys & Security</h2>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('minWithdrawDrawer')">
+        <span>💵 Tap to Change Minimum Withdrawal Amount</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="minWithdrawDrawer">
+        <input type="number" class="form-input" id="minWithdrawInput" placeholder="Minimum Withdrawal in GHS (e.g. 500)">
+        <button class="btn btn-primary" onclick="saveSettingField({min_withdrawal: document.getElementById('minWithdrawInput').value})">Save Minimum Withdrawal</button>
+      </div>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('newsBannerDrawer')">
+        <span>📢 Tap to Publish Latest News Banner</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="newsBannerDrawer">
+        <textarea class="form-input" id="latestNewsInput" rows="3" placeholder="Enter announcement shown on all user dashboards..."></textarea>
+        <button class="btn btn-primary" onclick="saveSettingField({latest_news: document.getElementById('latestNewsInput').value})">Publish News</button>
+      </div>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('paystackKeysDrawer')">
+        <span>💳 Tap to Configure Paystack Live API Keys</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="paystackKeysDrawer">
+        <input type="text" class="form-input" id="psPublicInput" placeholder="Paystack Public Key (pk_live_...)">
+        <input type="password" class="form-input" id="psSecretInput" placeholder="Paystack Secret Key (sk_live_...)">
+        <button class="btn btn-gold" onclick="saveSettingField({paystack_public_key: document.getElementById('psPublicInput').value, paystack_secret_key: document.getElementById('psSecretInput').value})">Save Paystack Keys</button>
+      </div>
+
+      <button class="tap-trigger" onclick="toggleAdminDrawer('resetAdminPinDrawer')">
+        <span>🔐 Tap to Reset 6-Digit Admin Login PIN</span><span>▾</span>
+      </button>
+      <div class="drawer-body" id="resetAdminPinDrawer">
+        <input type="password" maxlength="6" class="form-input" id="oldAdminPin" placeholder="Enter Old 6-Digit PIN">
+        <input type="password" maxlength="6" class="form-input" id="newAdminPin" placeholder="Enter New 6-Digit PIN">
+        <button class="btn btn-danger" onclick="saveSettingField({old_pin: document.getElementById('oldAdminPin').value, new_pin: document.getElementById('newAdminPin').value})">Update Admin PIN</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  let pinBuffer = "";
+  let adminData = null;
+  let selectedChatUserId = null;
+  let adminSocket = null;
+
+  document.getElementById("healthUrlDisplay").textContent = `${window.location.origin}/health`;
+
+  function showAdminToast(msg) {
+    const t = document.getElementById("adminToast");
+    t.textContent = msg;
+    t.style.display = "block";
+    setTimeout(() => t.style.display = "none", 3200);
+  }
+
+  function updatePinDots() {
+    document.querySelectorAll(".pin-dot").forEach((dot, idx) => {
+      dot.classList.toggle("filled", idx < pinBuffer.length);
+    });
+  }
+
+  function pressPin(digit) {
+    if (pinBuffer.length >= 6) return;
+    pinBuffer += digit;
+    updatePinDots();
+    if (pinBuffer.length === 6) verifyAdminPin();
+  }
+
+  function backspacePin() {
+    pinBuffer = pinBuffer.slice(0, -1);
+    updatePinDots();
+  }
+
+  function clearPin() {
+    pinBuffer = "";
+    updatePinDots();
+  }
+
+  async function verifyAdminPin() {
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({pin: pinBuffer})
+    });
+    const data = await res.json();
+    if (!data.success) {
+      showAdminToast(data.message);
+      clearPin();
+      return;
+    }
+    document.getElementById("adminPinGate").style.display = "none";
+    document.getElementById("adminWorkspace").style.display = "block";
+    await loadAdminOverview();
+    initAdminSocket();
+  }
+
+  async function adminLogout() {
+    await fetch("/api/admin/logout", {method: "POST"});
+    location.reload();
+  }
+
+  async function loadAdminOverview() {
+    const res = await fetch("/api/admin/overview");
+    if (res.status === 401) return;
+    const data = await res.json();
+    if (!data.success) return;
+    adminData = data;
+
+    document.getElementById("kpiTodayRev").textContent = `GHS ${data.stats.today_revenue.toFixed(2)}`;
+    document.getElementById("kpiTotalRev").textContent = `GHS ${data.stats.total_revenue.toFixed(2)}`;
+    document.getElementById("kpiUsers").textContent = data.stats.total_users;
+    document.getElementById("kpiDeliveries").textContent = data.stats.pending_deliveries;
+
+    document.getElementById("minWithdrawInput").value = data.settings.min_withdrawal;
+    document.getElementById("spinDifficultySelect").value = data.settings.spin_difficulty;
+    document.getElementById("latestNewsInput").value = data.settings.latest_news;
+    document.getElementById("psPublicInput").value = data.settings.paystack_public_key || "";
+    document.getElementById("psSecretInput").value = data.settings.paystack_secret_key || "";
+
+    renderAdminUsers(data.users);
+    renderAdminPlans(data.plans);
+    renderAdminDevices(data.devices);
+    renderAdminOrders(data.deliveries, data.withdrawals);
+    renderChatThreads(data.chat_threads);
+  }
+
+  function renderAdminUsers(users) {
+    const sel = document.getElementById("adjUserId");
+    sel.innerHTML = users.map(u => `<option value="${u.id}">${u.full_name} (${u.phone})</option>`).join("");
+
+    document.getElementById("adminUsersTable").innerHTML = users.map(u => `
+      <tr>
+        <td><strong>${u.full_name}</strong><br><small style="color:var(--muted);">Joined ${u.joined}</small></td>
+        <td>${u.phone}</td>
+        <td><span style="background:#dbeafe;color:#1d4ed8;padding:3px 8px;border-radius:6px;font-weight:700;">${u.vip_level}</span></td>
+        <td><strong>GHS ${u.total_registered_amount.toFixed(2)}</strong></td>
+        <td>Prod: GHS ${u.product_wallet.toFixed(2)}<br>Earn: GHS ${u.earnings_wallet.toFixed(2)}</td>
+        <td>${u.is_active ? '<span style="color:var(--emerald);font-weight:700;">Active</span>' : '<span style="color:var(--danger);font-weight:700;">Deactivated</span>'}</td>
+        <td>
+          <button class="btn ${u.is_active ? 'btn-danger' : 'btn-emerald'}" onclick="toggleUserAccount(${u.id})">
+            ${u.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  async function toggleUserAccount(userId) {
+    const res = await fetch("/api/admin/user-control", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({user_id: userId, action: "toggle_status"})
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  async function submitWalletAdjustment() {
+    const res = await fetch("/api/admin/user-control", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        user_id: document.getElementById("adjUserId").value,
+        action: "adjust_wallet",
+        wallet_type: document.getElementById("adjWalletType").value,
+        amount: document.getElementById("adjWalletAmount").value
+      })
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  function renderAdminPlans(plans) {
+    const activePlans = plans.filter(p => p.is_active);
+    document.getElementById("editVipSelect").innerHTML = activePlans.map(p => `<option value="${p.id}">${p.name} (GHS ${p.price})</option>`).join("");
+    document.getElementById("adminVipTable").innerHTML = activePlans.map(p => `
+      <tr>
+        <td><strong>${p.name}</strong></td>
+        <td>GHS ${p.price.toFixed(2)}</td>
+        <td style="color:var(--emerald); font-weight:700;">GHS ${p.daily_profit.toFixed(2)}/day</td>
+        <td>${p.duration_days} Days</td>
+        <td><button class="btn btn-danger" onclick="removeVipPlan(${p.id})">Remove</button></td>
+      </tr>
+    `).join("");
+  }
+
+  async function addVipPlan() {
+    const res = await fetch("/api/admin/vip-plans", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        action: "add",
+        name: document.getElementById("newVipName").value,
+        price: document.getElementById("newVipPrice").value,
+        daily_profit: document.getElementById("newVipDaily").value,
+        duration_days: document.getElementById("newVipDays").value,
+        is_vip2_tier: document.getElementById("newVipIsVip2").checked
+      })
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  async function updateVipPlan() {
+    const res = await fetch("/api/admin/vip-plans", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        action: "update",
+        plan_id: document.getElementById("editVipSelect").value,
+        price: document.getElementById("editVipPrice").value,
+        daily_profit: document.getElementById("editVipDaily").value
+      })
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  async function removeVipPlan(planId) {
+    const res = await fetch("/api/admin/vip-plans", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "remove", plan_id: planId})
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  async function resetVipDefaults() {
+    const res = await fetch("/api/admin/vip-plans", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "reset_defaults"})
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  function toggleSaleFields() {
+    document.getElementById("saleDeviceFields").style.display = document.getElementById("devType").value === "sale" ? "block" : "none";
+  }
+
+  async function uploadSpinDevice(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append("name", document.getElementById("devName").value);
+    formData.append("specs", document.getElementById("devSpecs").value);
+    formData.append("spin_type", document.getElementById("devType").value);
+    formData.append("retail_price", document.getElementById("devRetailPrice").value || 0);
+    formData.append("discount_options", document.getElementById("devDiscountSlices").value);
+    formData.append("image", document.getElementById("devImageFile").files[0]);
+
+    const res = await fetch("/api/admin/devices", {method: "POST", body: formData});
+    const data = await res.json();
+    showAdminToast(data.message);
+    if (data.success) {
+      e.target.reset();
+      loadAdminOverview();
+    }
+  }
+
+  function renderAdminDevices(devices) {
+    const saleDevs = devices.filter(d => d.spin_type === "sale");
+    document.getElementById("editSaleDevSelect").innerHTML = saleDevs.map(d => `<option value="${d.id}">${d.name}</option>`).join("");
+
+    document.getElementById("adminDevicesTable").innerHTML = devices.map(d => `
+      <tr>
+        <td><img src="${d.image_data}" style="width:52px;height:52px;object-fit:contain;border-radius:8px;background:#f1f5f9;"></td>
+        <td><strong>${d.name}</strong><br><small style="color:var(--muted);">${d.specs}</small></td>
+        <td>${d.spin_type === 'free' ? 'Free Spin (VIP2)' : 'Discount Sale Spin'}</td>
+        <td>${d.spin_type === 'free' ? '3 WIN / 3 LOST' : `Retail: GHS ${d.retail_price} | Slices: ${d.discount_options}`}</td>
+        <td><button class="btn btn-danger" onclick="removeDevice(${d.id})">Remove</button></td>
+      </tr>
+    `).join("");
+  }
+
+  async function removeDevice(deviceId) {
+    const res = await fetch("/api/admin/devices", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "remove", device_id: deviceId})
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  async function updateSaleDevicePricing() {
+    const res = await fetch("/api/admin/devices", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        action: "update_options",
+        device_id: document.getElementById("editSaleDevSelect").value,
+        retail_price: document.getElementById("editSaleRetail").value,
+        discount_options: document.getElementById("editSaleOptions").value
+      })
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  async function saveSpinDifficulty() {
+    await saveSettingField({spin_difficulty: document.getElementById("spinDifficultySelect").value});
+  }
+
+  async function saveSettingField(payload) {
+    const res = await fetch("/api/admin/settings", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+    loadAdminOverview();
+  }
+
+  function renderAdminOrders(deliveries, withdrawals) {
+    document.getElementById("adminDeliveriesTable").innerHTML = deliveries.map(o => `
+      <tr>
+        <td><strong>${o.user_name}</strong></td>
+        <td>${o.device_name}</td>
+        <td>${o.spin_type === 'free' ? 'FREE VIP2 WIN' : `Paid GHS ${o.amount_paid}`}<br><small>${o.paystack_ref || ''}</small></td>
+        <td>${o.contact_phone}</td>
+        <td>${o.region} — ${o.address}</td>
+        <td>
+          <select onchange="updateOrderStatus('delivery', ${o.id}, this.value)" style="padding:6px;border-radius:8px;">
+            <option ${o.status === 'Pending Delivery' ? 'selected' : ''}>Pending Delivery</option>
+            <option ${o.status === 'Dispatched' ? 'selected' : ''}>Dispatched</option>
+            <option ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+          </select>
+        </td>
+      </tr>
+    `).join("");
+
+    document.getElementById("adminWithdrawalsTable").innerHTML = withdrawals.map(w => `
+      <tr>
+        <td><strong>${w.user_name}</strong><br><small>${w.phone}</small></td>
+        <td style="color:var(--emerald);font-weight:800;">GHS ${w.amount.toFixed(2)}</td>
+        <td>${w.details}</td>
+        <td>${w.date}</td>
+        <td>
+          <select onchange="updateOrderStatus('withdrawal', ${w.id}, this.value)" style="padding:6px;border-radius:8px;">
+            <option ${w.status === 'processing' ? 'selected' : ''}>processing</option>
+            <option ${w.status === 'paid' ? 'selected' : ''}>paid</option>
+          </select>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  async function updateOrderStatus(kind, id, status) {
+    const res = await fetch("/api/admin/order-status", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({kind, id, status})
+    });
+    const data = await res.json();
+    showAdminToast(data.message);
+  }
+
+  // ==========================================
+  // INSTANT WEBSOCKET LIVE CHAT CONSOLE
+  // ==========================================
+
+  function initAdminSocket() {
+    if (adminSocket) return;
+    adminSocket = io();
+    adminSocket.on("connect", () => {
+      adminSocket.emit("join_chat", {role: "admin"});
+    });
+    adminSocket.on("new_chat_message", (msg) => {
+      if (!adminData) return;
+      let thread = adminData.chat_threads.find(t => t.user_id === msg.user_id);
+      if (!thread) {
+        thread = {user_id: msg.user_id, user_name: msg.user_name || "Investor", phone: msg.phone || "", messages: []};
+        adminData.chat_threads.unshift(thread);
+      }
+      thread.messages.push(msg);
+      renderChatThreads(adminData.chat_threads);
+      if (selectedChatUserId === msg.user_id) {
+        renderActiveChatFeed(thread);
+      } else if (msg.sender === "user") {
+        showAdminToast(`New message from ${thread.user_name}`);
+      }
+    });
+  }
+
+  function renderChatThreads(threads) {
+    const list = document.getElementById("adminThreadList");
+    if (!threads.length) {
+      list.innerHTML = `<p style="padding:16px;font-size:13px;color:var(--muted);">No investor messages yet.</p>`;
+      return;
+    }
+    list.innerHTML = threads.map(t => `
+      <div class="thread-item ${selectedChatUserId === t.user_id ? 'active' : ''}" onclick="selectChatThread(${t.user_id})">
+        <div><strong>${t.user_name}</strong><br><small style="color:var(--muted);">${t.phone}</small></div>
+        <span style="font-size:11px;background:#dbeafe;color:#1d4ed8;padding:3px 8px;border-radius:99px;">${t.messages.length}</span>
+      </div>
+    `).join("");
+  }
+
+  function selectChatThread(userId) {
+    selectedChatUserId = userId;
+    const thread = adminData.chat_threads.find(t => t.user_id === userId);
+    renderChatThreads(adminData.chat_threads);
+    if (thread) {
+      document.getElementById("activeChatHeader").textContent = `Chatting with ${thread.user_name} (${thread.phone})`;
+      renderActiveChatFeed(thread);
+    }
+  }
+
+  function renderActiveChatFeed(thread) {
+    const feed = document.getElementById("adminChatFeed");
+    feed.innerHTML = thread.messages.map(m => `
+      <div class="bubble ${m.sender}">
+        ${m.message}
+        <small style="display:block;font-size:10px;opacity:0.7;margin-top:4px;">${m.time}</small>
+      </div>
+    `).join("");
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function sendAdminReply(e) {
+    e.preventDefault();
+    if (!selectedChatUserId || !adminSocket) return showAdminToast("Select a user thread first.");
+    const input = document.getElementById("adminReplyInput");
+    const text = input.value.trim();
+    if (!text) return;
+    adminSocket.emit("send_chat_message", {sender: "admin", user_id: selectedChatUserId, message: text});
+    input.value = "";
+  }
+
+  function switchPanel(name, btn) {
+    document.querySelectorAll(".panel-section").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".side-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById(`panel-${name}`).classList.add("active");
+    btn.classList.add("active");
+    document.getElementById("adminSidebar").classList.remove("open");
+  }
+
+  function toggleAdminDrawer(id) {
+    document.getElementById(id).classList.toggle("open");
+  }
+
+  // Check if admin session is already active
+  (async () => {
+    const res = await fetch("/api/admin/overview");
+    if (res.ok) {
+      document.getElementById("adminPinGate").style.display = "none";
+      document.getElementById("adminWorkspace").style.display = "block";
+      await loadAdminOverview();
+      initAdminSocket();
+    }
+  })();
+</script>
+</body>
+</html>
